@@ -25,10 +25,10 @@ from pytranscoder.utils import get_files, filter_threshold, files_from_file, cal
 
 the_main_filename = sys.argv[0]
 MAIN_DIR = os.path.dirname(the_main_filename)
-if os.path.exists(MAIN_DIR):
-    config_path = os.path.join(MAIN_DIR, 'trascoders', 'transcode.yml')
-else:
-    config_path = os.path.join(os.curdir, 'trascoders', 'transcode.yml')
+config_path = os.path.join(MAIN_DIR, 'trascodes', 'transcode.yml')
+if not os.path.exists(config_path):
+    # env_path = os.path.join(*sys.executable.split(os.sep)[:-2], 'shared', 'transcode.yml')
+    config_path = os.path.join(*sys.executable.split(os.sep)[:-2], 'shared', 'transcode.yml')
 # DEFAULT_CONFIG = os.path.expanduser('~/.transcode.yml')
 DEFAULT_CONFIG = config_path
 PROCESSES_SUFFIX_SEPARATOR = '_'
