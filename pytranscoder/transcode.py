@@ -88,7 +88,7 @@ class QueueThread(Thread):
                 job: LocalJob = self.queue.get()
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
-
+                logger = logging.getLogger(f'Processing {job.inpath.name}')
                 fls = False
                 overwrite = self.config.overwrite()
                 if self.config.fls_path():
@@ -115,14 +115,20 @@ class QueueThread(Thread):
                 #
                 # display useful information
                 #
-                self.lock.acquire()  # used to synchronize threads so multiple threads don't create a jumble of output
+                # self.lock.acquire()  # used to synchronize threads so multiple threads don't create a jumble of output
                 try:
-                    print('-' * 40)
-                    print('Filename : ' + crayons.green(os.path.basename(str(job.inpath))))
-                    print(f'Profile  : {job.profile.name}')
-                    print('{:<6}   : '.format(job.profile.processor) + ' '.join(cli) + '\n')
-                finally:
-                    self.lock.release()
+                    separator = '-' * 40
+                    self.log(logger.info,
+                             f"""Filename : {crayons.green(os.path.basename(str(job.inpath)))}\n
+                    Profile  : {job.profile.name}\n{'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}""")
+                    # print('Filename : ' + crayons.green(os.path.basename(str(job.inpath))))
+                    # print(f'Profile  : {job.profile.name}')
+                    # print('{:<6}   : '.format(job.profile.processor) + ' '.join(cli) + '\n')
+                except Exception as err:
+                    self.log(logger.critical, f'{err}')
+                # finally:
+                #     self.lock.release()
+
 
                 if pytranscoder.dry_run:
                     continue
@@ -136,16 +142,16 @@ class QueueThread(Thread):
                                                     'speed': stats['speed'],
                                                     'comp': pct_comp,
                                                     'done': pct_done})
-                    self.log(logging.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log(logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
                     if job.profile.threshold_check < 100:
                         if pct_done >= job.profile.threshold_check and pct_comp < job.profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...
-                            self.log(logging.warning, f'Encoding of {basename} cancelled and skipped due to threshold not met')
+                            self.log(logger.warning, f'Encoding of {basename} cancelled and skipped due to threshold not met')
                             return True
                     return False
 
                 def hbcli_callback(stats):
-                    self.log(logging.info, f'{basename}: avg fps: {stats["fps"]}, ETA: {stats["eta"]}')
+                    self.log(logger.info, f'{basename}: avg fps: {stats["fps"]}, ETA: {stats["eta"]}')
                     return False
 
                 def add_processed_suffix(_output):
@@ -166,42 +172,42 @@ class QueueThread(Thread):
                 if code == 0:
                     if not filter_threshold(job.profile, str(job.inpath), outpath):
                         # oops, this transcode didn't do so well, lets keep the original and scrap this attempt
-                        self.log(logging.warning, f'Transcoded file {job.inpath} did not meet minimum savings threshold, skipped')
+                        self.log(logger.warning, f'Transcoded file {job.inpath} did not meet minimum savings threshold, skipped')
                         self.complete(job.inpath, (job_stop - job_start).seconds)
-                        self.log(logging.info, f'completed: {job.inpath} in {(job_stop - job_start).seconds}')
+                        self.log(logger.info, f'completed: {job.inpath} in {(job_stop - job_start).seconds}')
                         os.unlink(str(outpath))
-                        self.log(logging.info, f'{outpath} removed')
+                        self.log(logger.info, f'{outpath} removed')
                         continue
 
                     self.complete(job.inpath, elapsed.seconds)
                     if not pytranscoder.keep_source:
                         if pytranscoder.verbose:
-                            self.log(logging.info, f'replacing {job.inpath} with {outpath}')
+                            self.log(logger.info, f'replacing {job.inpath} with {outpath}')
 
                         if overwrite:
                             job.inpath.unlink()
-                            self.log(logging.info, f'original file {job.inpath} removed')
+                            self.log(logger.info, f'original file {job.inpath} removed')
 
                         if fls:
                             completed_path = job.inpath.with_suffix(job.profile.extension)
                             if not overwrite:
                                 completed_path = add_processed_suffix(completed_path)
                             shutil.move(outpath,completed_path)
-                            self.log(logging.info, f'{outpath} moved to {completed_path}')
+                            self.log(logger.info, f'{outpath} moved to {completed_path}')
                         else:
                             outpath.rename(job.inpath.with_suffix(job.profile.extension))
 
-                        self.log(logging.info, crayons.green(f'Finished {job.inpath}'))
+                        self.log(logger.info, crayons.green(f'Finished {job.inpath}'))
                     else:
-                        self.log(logging.info, crayons.yellow(f'Finished {outpath}, original file unchanged'))
+                        self.log(logger.info, crayons.yellow(f'Finished {outpath}, original file unchanged'))
                 elif code is not None:
-                    self.log(logging.critical, f' Did not complete normally: {processor.last_command}')
-                    self.log(logging.info, f'Output can be found in {processor.log_path}')
+                    self.log(logger.critical, f' Did not complete normally: {processor.last_command}')
+                    self.log(logger.info, f'Output can be found in {processor.log_path}')
                     try:
                         outpath.unlink()
-                        self.log(logging.info, f'{outpath} removed')
+                        self.log(logger.info, f'{outpath} removed')
                     except Exception as err:
-                        self.log(logging.warning, f'{outpath} NOT removed')
+                        self.log(logger.warning, f'{outpath} NOT removed')
             finally:
                 self.queue.task_done()
 
@@ -255,10 +261,10 @@ class LocalHost:
                 comp = report['comp']
                 done = report['done']
 
-                self.lock.acquire()
-                # print(f'{basename}: speed: {speed}x, comp: {comp}%, done: {done:3}%')
-                sys.stdout.flush()
-                self.lock.release()
+                # self.lock.acquire()
+                # # print(f'{basename}: speed: {speed}x, comp: {comp}%, done: {done:3}%')
+                # sys.stdout.flush()
+                # self.lock.release()
                 pytranscoder.status_queue.task_done()
             except Empty:
                 busy = False
