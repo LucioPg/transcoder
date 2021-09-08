@@ -25,7 +25,7 @@ from pytranscoder.utils import get_files, filter_threshold, files_from_file, cal
 
 the_main_filename = sys.argv[0]
 MAIN_DIR = os.path.dirname(the_main_filename)
-config_path = os.path.join(MAIN_DIR, 'trascodes', 'transcodes.yml')
+config_path = os.path.join(MAIN_DIR, 'trascodes', 'transcode.yml')
 if not os.path.exists(config_path):
     import platform
     system = platform.system()
