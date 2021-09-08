@@ -1,0 +1,302 @@
+##
+# NOTE: This file is a sample configuration starting point. Copy it to customize.
+##
+
+##########################################
+# global configuration section
+##########################################
+config:
+  default_queue_file: '/home/gorilla/Documenti/PycharmProjects/pythonProject/queue/transcode_queue.txt'
+  ffmpeg: '/usr/local/bin/ffmpeg'
+  queues:
+    cuda: 2
+  colorize: yes
+  fls_path: '/tmp'
+  overwrite: no
+
+#######################################################
+# Profile definitions section
+# You can model all your transcoding combinations here.
+#######################################################
+
+profiles:
+
+  #
+  # Common options for all encodes, included in other
+  # profiles as defaults (but can be overridden)
+  # (for include-use only)
+  #
+  base:
+    #
+    # ffmpeg output-related options
+    #
+    output_options:
+##        - "-f matroska"     # mkv format
+#        - "-max_muxing_queue_size 1024"
+#        - "-movflags +faststart"
+    output_options_subtitle:
+#        - "-c:s copy"       # copy all subtitles as-is
+    output_options_audio:
+#        - "-c:a copy"       # copy all audio as-is
+       # - "-c:a aac"
+        #- "-b:a 128k"
+    extension: '.mp4'
+#    threshold: 18           # minimum of 18% compression required
+#    threshold_check: 20     # start checking threshold at 20% complete
+
+    #
+    # audio drop/keep handling
+    #
+    audio:
+        #
+        # Included languages take precedent. By default all languages are retained.
+        # Any specifically included languages here automatically discard all others.
+        #
+        include_languages:
+            - "eng"
+        default_language: eng
+    #
+    # subtitle drop/keep handling
+    #
+    subtitle:
+        # see audio comment above
+        include_languages:
+            - "eng"
+            - "ita"
+        default_language: eng
+
+  ############################################
+  # nVidia CUDA-specific common options
+  # (for include-use only)
+  ############################################
+  cuda:
+      input_options:
+        - "-c:v h264_nvenc"
+        - "-preset medium"
+        - "-pix_fmt yuv420p"
+        - "-max_muxing_queue_size 1024"
+        - "-c:a aac"
+        - "-b:a 128k"
+        - "-movflags +faststart"
+      output_options_video:
+        - "-hwaccel cuda"
+        - "-hwaccel_output_format cuda"
+#        - "-vf hwupload_cuda, scale_cuda"
+#        - "-cq:v 25"            # crf option passed to CUDA engine
+#        - "-rc vbr_hq"          # variable bit-rate, high quality
+#        - "-rc-lookahead 20"
+#        - "-bufsize 5M"
+#        - "-b:v 7M"
+#        - "-b:a 128k"
+#        - "-profile:v main"
+#        - "-maxrate:v 7M"
+
+
+#  ##############################################
+#  # nVidia CUDA-specific for 10bit video support
+#  # (Pascal-based cards or newer)
+#  ##############################################
+#  hevc_cuda_10bit:
+#      include: "base cuda"      # include "base" and "cuda" definitions
+#      output_options:
+#        - "-pix_fmt yuv420p10le"
+#        - "-profile:v main10"   # redefine the profile:v value from "base" options
+#
+#  ###############################################
+#  # HEVC CUDA high quality, for just about
+#  # everything.
+#  ###############################################
+  hevc_cuda:
+      include: "base cuda"  # include "base" and "cuda" definitions
+      queue: 'cuda'
+
+#  ###############################################
+#  # Intel QSV common options
+#  ###############################################
+#  qsv:
+#    input_options:
+#      # enable hardware decoding
+#      - "-init_hw_device vaapi=intel:/dev/dri/renderD128"
+#      - "-hwaccel vaapi"
+#      - "-hwaccel_output_format vaapi"
+#      - "-hwaccel_device intel"
+#    output_options_video:
+#      - "-vf format=vaapi,hwupload"
+#      - "-preset slow"
+#      - "-rc_mode 1"
+#      - "-qp 20"
+#      - "-b:v 7M"
+#    output_options_subtitle:
+#      - "-c:s copy"
+#    output_options_audio:
+#      - "-c:a copy"
+#
+#  ###############################################
+#  # Intel QSV (HEVC)
+#  ###############################################
+#  hevc_qsv:
+#    include: "base qsv"
+#    output_options_video:
+#        - "-c:v hevc_vaapi"
+#        - "-max_muxing_queue_size 1024"
+#    queue: 'qsv'
+#
+#  ###############################################
+#  # Intel QSV (x264)
+#  ###############################################
+#  x264_qsv:
+#    include: "base qsv"
+#    output_options_video:
+#      - "-c:v h264_vaapi"
+#    queue: 'qsv'
+#    threshold: 20
+#
+#  ###############################################
+  # Finally, come CPU-only profiles. Not sure
+  # why you would use if you have hardware
+  # support, but including for documentation.
+  ###############################################
+  #
+#  x264_mp4:
+#      include: "base"
+#      output_options:
+#        - "-f mp4"
+#      output_options_video:
+#        - "-threads 4"
+#        - "-c:v h264"
+#        - "-crf 18"
+#      output_options_audio:
+#        - "-c:a copy"
+#      output_options_subtitle:
+#        - "-c:s copy"
+#      threshold: 15
+#      threshold_check: 30
+#
+#  copy_mp4: # mostly used to fix badly formatted files
+#      output_options_video:
+#        - "-c:v copy"
+#      output_options_audio:
+#        - "-c:a copy"
+#      output_options_subtitle:
+#        - "-c:s copy"
+#        - "-f mp4"
+#      extension: '.mp4'
+#
+#  #
+#  # example audio-only partial profiles, to be used as mixins.
+#  #
+#  mp3_hq:
+#    output_options_audio:
+#      - "-c:a libmp3lame"
+#      - "-q:a 330"
+#
+#  aac_hq:
+#    output_options_audio:
+#      - "-c:a libfdk_aac"
+#      - "-b:a 384k"
+#
+#  #################################################
+#  # The following are scenario-specific profiles.
+#  # They are examples of how to treat various
+#  # media differently from the generic ones above.
+#  #################################################
+#
+#  #
+#  # For the series Dark, don't transcode but do
+#  # strip out non-preferred languages
+#  #
+#  dark_passthru:
+#      output_options:
+#        - "-c:v copy"
+#        - "-c:a copy"
+#        - "-c:s copy"
+#        - "-f matroska"
+#      audio:
+#        include_languages:
+#            - "ger"
+#            - "eng"
+#      subtitle:
+#          include_languages:
+#            - "eng"
+#      extension: ".mkv"
+#
+#  #
+#  # Anime - keep Japanese language track and English subtitles
+#  # English subtitles already included in base profile
+#  #
+#  anime:
+#      include: "base cuda"
+#      audio:
+#          include_languages:
+#              - "eng"
+#              - "jpn"
+#
+#  #
+#  # When you get those oddball encodes with a stupid high
+#  # frame rate (Alan Partridge comes to mind)
+#  #
+  hevc_cuda_30fps:
+      include: "base cuda"
+      output_options:
+        - "-r 30"
+      queue: 'cuda'
+
+#
+# Automatching happens when a profile isn't provided on the command line.  These rules are evalulated to find the
+# most appropriate profile for each video to be transcoded.
+#
+# rule predicates:
+#
+#            vcodec         Video codec of the source ('ffmpeg -codecs' to see full list), may preceed with ! for not-equal test
+#            res_height     Source video resolution height, operators < and > allowed
+#            res_width      Source video resolution width, operators < and > allowed
+#            filesize_mb    Size of the source file (in megabytes), operators allowed
+#            runtime        Source runtime in minutes, operators allowed
+#            fps            Framerate of the source
+#            path           Full path of the source file. Value can be a regular expression (ie. '.*/Television/.*').
+#
+# Rules are evaluated in order.  First matching rule wins so order wisely.
+# Rules with a profile of "SKIP" mean to skip processing of the matched video
+#
+rules:
+
+  'skip video if already encoded in hevc/h265':
+      profile: SKIP
+      criteria:
+        vcodec: 'hevc'
+
+  'small enough already':
+      profile: SKIP
+      criteria:
+        filesize_mb: '<300000'
+        res_height: '721-1081'
+        runtime:  '30-65'
+
+#  'special HD higher quality, keep original':
+#      profile: SKIP
+#      criteria:
+#        filesize_mb: '<3500'
+#        runtime: '45-65'
+#        path: 'Westworld|Walking|Vikings|Expanse'
+
+  'high frame rate':
+      profile: hevc_cuda_30fps
+      criteria:
+        fps: '>30'
+        filesize_mb: '>500'
+
+  'skip video if resolution < 700':
+      profile: SKIP
+      criteria:
+        res_height: '<700'
+
+  'anime':
+      profile: anime
+      criteria:
+          path: '.*/anime/.*'
+
+  'default':
+      profile: hevc_cuda
+      criteria:
+        vcodec: '!hevc'
+
