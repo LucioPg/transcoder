@@ -25,11 +25,21 @@ from pytranscoder.utils import get_files, filter_threshold, files_from_file, cal
 
 the_main_filename = sys.argv[0]
 MAIN_DIR = os.path.dirname(the_main_filename)
-config_path = os.path.join(MAIN_DIR, 'trascodes', 'transcode.yml')
+config_path = os.path.join(MAIN_DIR, 'trascodes', 'transcodes.yml')
 if not os.path.exists(config_path):
-    # env_path = os.path.join(*sys.executable.split(os.sep)[:-2], 'shared', 'transcode.yml')
-    config_path = os.path.join(*sys.executable.split(os.sep)[:-2], 'shared', 'transcode.yml')
+    import platform
+    system = platform.system()
+    if system not in ['Linux']: #todo add mcosx
+        config_path = os.path.join(*sys.executable.split(os.sep)[:-2], 'share', 'doc', 'pytranscoder', 'transcode.yml')
+    else:
+        config_path = os.path.join('/'.join(sys.executable.split(os.sep)[:-2]), 'share', 'doc', 'pytranscoder', 'transcode.yml')
 # DEFAULT_CONFIG = os.path.expanduser('~/.transcode.yml')
+if not os.path.exists(config_path):
+    import logging
+    logger = logging.getLogger('pytranscode.py')
+    logger.critical(f'missing configuration file: {config_path}')
+    sys.exit(-1)
+
 DEFAULT_CONFIG = config_path
 PROCESSES_SUFFIX_SEPARATOR = '_'
 PROCESSED_SUFFIX = f'{PROCESSES_SUFFIX_SEPARATOR}cuda'
