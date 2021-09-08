@@ -4,7 +4,7 @@ import os
 import platform
 import subprocess
 from typing import Dict, List
-
+from functools import wraps
 import pytranscoder
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
@@ -77,3 +77,22 @@ def dump_stats(completed):
         _sec = int(elapsed % 60)
         print(f"{pathname}  ({_min:3}m {_sec:2}s)")
     print()
+
+
+def add_files_from_dir(queue_file, dirpath):
+    if os.path.exists(dirpath):
+        with open(queue_file, 'w') as f:
+            f.writelines(get_files(dirpath))
+
+def get_files(dirpath, config):
+    files = []
+    if os.path.exists(dirpath):
+        if os.path.isdir(dirpath):
+            from glob import glob
+            processor = config.get_processor()
+            exts= [f'*.{ext}' for ext in processor.get_all_extensions() if ext]
+            files = [(_file, None, None) for _path in os.walk(dirpath) for _file in glob(os.path.join(_path[0], '*.mp4')) if os.path.isfile(_file)]
+        elif os.path.isfile(dirpath):
+            files = [(dirpath, None, None)]
+        return files
+

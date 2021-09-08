@@ -2,4 +2,4 @@ from . import transcode
 
 
 def main():
-    transcode.main()
+    transcode.main(cmd_line=True)

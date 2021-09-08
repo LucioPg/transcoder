@@ -18,10 +18,11 @@ from pytranscoder.cluster import manage_clusters
 from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from pytranscoder.utils import filter_threshold, files_from_file, calculate_progress, dump_stats
+from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats
 
 DEFAULT_CONFIG = os.path.expanduser('~/.transcode.yml')
-
+PROCESSES_SUFFIX_SEPARATOR = '_'
+PROCESSED_SUFFIX = f'{PROCESSES_SUFFIX_SEPARATOR}cuda'
 
 class LocalJob:
     """One file with matched profile to be encoded"""
@@ -76,6 +77,7 @@ class QueueThread(Thread):
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
 
                 fls = False
+                overwrite = self.config.overwrite()
                 if self.config.fls_path():
                     # lets write output to local storage, for efficiency
                     outpath = PurePath(self.config.fls_path(), job.inpath.with_suffix(job.profile.extension).name)
@@ -90,7 +92,10 @@ class QueueThread(Thread):
                 if job.profile.is_ffmpeg:
                     if job.info.is_multistream() and self.config.automap and job.profile.automap:
                         output_opt = output_opt + job.info.ffmpeg_streams(job.profile)
-                    cli = ['-y', *input_opt, '-i', str(job.inpath), *output_opt, str(outpath)]
+                    # cli = ['-y', *input_opt, '-i', str(job.inpath), *output_opt, str(outpath)]
+                    overwrite_flag = '-y'
+                    # overwrite_flag = '-y' if overwrite else '-n'
+                    cli = [ overwrite_flag, '-i', str(job.inpath), *input_opt,  str(outpath), *output_opt]
                 else:
                     cli = ['-i', str(job.inpath), *input_opt, *output_opt, '-o', str(outpath)]
 
@@ -130,6 +135,13 @@ class QueueThread(Thread):
                     self.log(f'{basename}: avg fps: {stats["fps"]}, ETA: {stats["eta"]}')
                     return False
 
+                def add_processed_suffix(_output):
+                    base, ext = os.path.splitext(_output)
+                    base += PROCESSED_SUFFIX
+
+                    return PurePath(base + ext)
+
+
                 job_start = datetime.datetime.now()
                 if processor.is_ffmpeg():
                     code = processor.run(cli, log_callback)
@@ -150,10 +162,15 @@ class QueueThread(Thread):
                     if not pytranscoder.keep_source:
                         if pytranscoder.verbose:
                             self.log(f'replacing {job.inpath} with {outpath}')
-                        job.inpath.unlink()
+
+                        if overwrite:
+                            job.inpath.unlink()
 
                         if fls:
-                            shutil.move(outpath, job.inpath.with_suffix(job.profile.extension))
+                            completed_path = job.inpath.with_suffix(job.profile.extension)
+                            if not overwrite:
+                                completed_path = add_processed_suffix(completed_path)
+                            shutil.move(outpath,completed_path)
                         else:
                             outpath.rename(job.inpath.with_suffix(job.profile.extension))
 
@@ -165,8 +182,8 @@ class QueueThread(Thread):
                     self.log(f'Output can be found in {processor.log_path}')
                     try:
                         outpath.unlink()
-                    except:
-                        pass
+                    except Exception as err:
+                        print(err)
             finally:
                 self.queue.task_done()
 
@@ -340,12 +357,31 @@ def install_sigint_handler():
     signal.signal(signal.SIGINT, signal_handler)
 
 
-def main():
-    start()
+def main(cmd_line=False):
+    if cmd_line:
+        start()
+    else:
+        start_cmd_line()
+
+def start(path):
+    install_sigint_handler()
+    is_dir = not os.path.isfile(path)
+    configfile = ConfigFile(DEFAULT_CONFIG)
+    files = get_files(path, configfile)
+    queue_path = configfile.default_queue_file
+    if not queue_path:
+        queue_path = '/tmp/py_encoder.txt'
+    if not configfile.colorize:
+        crayons.disable()
+    else:
+        crayons.enable()
+    host_start(configfile, files, queue_path)
 
 
-def start():
 
+
+def start_cmd_line():
+    # print(get_files('/home/gorilla/Scaricati', ConfigFile(DEFAULT_CONFIG)))
     if len(sys.argv) == 2 and sys.argv[1] == '-h':
         print(f'pytrancoder (ver {__version__})')
         print('usage: pytrancoder [OPTIONS]')
@@ -462,6 +498,11 @@ def start():
             dump_stats(completed)
         sys.exit(0)
 
+
+    host_start(configfile, files, queue_path)
+
+
+def host_start(configfile, files, queue_path):
     host = LocalHost(configfile)
     host.enqueue_files(files)
     #
@@ -477,4 +518,4 @@ def start():
 
 
 if __name__ == '__main__':
-    start()
+    start_cmd_line()

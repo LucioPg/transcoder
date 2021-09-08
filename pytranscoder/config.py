@@ -54,6 +54,9 @@ class ConfigFile:
     def fls_path(self) -> str:
         return self.settings.get('fls_path', None)
 
+    def overwrite(self) -> bool:
+        return self.settings.get('overwrite', True)
+
     def colorize(self) -> bool:
         return self.settings.get('colorize', 'no').lower() == 'yes'
 
