@@ -84,21 +84,24 @@ def add_files_from_dir(queue_file, dirpath):
         with open(queue_file, 'w') as f:
             f.writelines(get_files(dirpath))
 
+
 def get_files(dirpath, config):
     files = []
     recursive = config.settings.get('recursive', False)
     if os.path.exists(dirpath):
         if os.path.isdir(dirpath):
+            exts = list({f'*{profile.extension}' for profile in config.profiles.values() if profile.extension is not None})
             from glob import glob
             if recursive:
-                os_func = lambda _path: os.walk(_path)
+                glob_list = lambda path: [new_path for ext in exts for new_path in glob(os.path.join(path[0], ext))]
+                files = [(_file, None, None) for _path in os.walk(dirpath) for _file in
+                         glob_list(_path) if os.path.isfile(_file)]
             else:
-                os_func = lambda _path: os.listdir(_path)
-            exts = list({f'*{profile.extension}' for profile in config.profiles.values() if profile.extension is not None})
-            glob_list = lambda path: [new_path for ext in exts for new_path in glob(os.path.join(path[0], ext))]
-            files = [(_file, None, None) for _path in os_func(dirpath) for _file in
-                     glob_list(_path) if os.path.isfile(_file)]
-        elif os.path.isfile(dirpath):
+                # os_func = lambda _path: os.listdir(_path)
+                root, _, _ = next(os.walk(dirpath))
+                files = [(_file, None, None)  for ext in exts for _file in glob(os.path.join(root, ext)) if os.path.isfile(_file)]
+
+        else:
             files = [(dirpath, None, None)]
         return files
 
