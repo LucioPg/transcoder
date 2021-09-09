@@ -51,11 +51,14 @@ class ConfigFile:
             else:
                 self.queues = dict()
 
-    def fls_path(self) -> str:
-        return self.settings.get('fls_path', None)
+    def tmp_dir(self) -> str:
+        return self.settings.get('tmp_dir', None)
 
-    def overwrite(self) -> bool:
-        return self.settings.get('overwrite', True)
+    def dest_dir(self) -> str:
+        return self.settings.get('dest_dir', None)
+
+    def keep_orig(self) -> bool:
+        return self.settings.get('keep_orig', True)
 
     def colorize(self) -> bool:
         return self.settings.get('colorize', 'no').lower() == 'yes'

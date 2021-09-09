@@ -11,11 +11,12 @@ config:
   queues:
     cuda: 2
   colorize: yes
-  fls_path: '/tmp'
-  overwrite: no
+  tmp_dir: '/tmp'
+  dest_dir: '/home/gorilla/Documenti/convertiti'
   completed_suffix_regex: '_cuda.*$'
   completed_suffix: '_cuda'
   recursive: no
+  keep_orig: yes
 
 #######################################################
 # Profile definitions section

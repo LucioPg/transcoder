@@ -100,10 +100,10 @@ class QueueThread(Thread):
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
                 logger = logging.getLogger(f'Processing {job.inpath.name}')
                 fls = False
-                overwrite = self.config.overwrite()
-                if self.config.fls_path():
+                keep_orig = self.config.keep_orig()
+                if self.config.tmp_dir():
                     # lets write output to local storage, for efficiency
-                    outpath = PurePath(self.config.fls_path(), job.inpath.with_suffix(job.profile.extension).name)
+                    outpath = PurePath(self.config.tmp_dir(), job.inpath.with_suffix(job.profile.extension).name)
                     fls = True
                 else:
                     outpath = job.inpath.with_suffix(job.profile.extension + '.tmp')
@@ -117,7 +117,7 @@ class QueueThread(Thread):
                         output_opt = output_opt + job.info.ffmpeg_streams(job.profile)
                     # cli = ['-y', *input_opt, '-i', str(job.inpath), *output_opt, str(outpath)]
                     overwrite_flag = '-y'
-                    # overwrite_flag = '-y' if overwrite else '-n'
+                    # overwrite_flag = '-y' if keep_orig else '-n'
                     cli = [ overwrite_flag, '-i', str(job.inpath), *input_opt,  str(outpath), *output_opt]
                 else:
                     cli = ['-i', str(job.inpath), *input_opt, *output_opt, '-o', str(outpath)]
@@ -166,7 +166,7 @@ class QueueThread(Thread):
                 def add_processed_suffix(_output):
                     base, ext = os.path.splitext(_output)
                     suffix = self.config.settings.get('completed_suffix', DEFAULT_PROCESSED_SUFFIX)
-                    base += DEFAULT_PROCESSED_SUFFIX
+                    base += suffix
 
                     return PurePath(base + ext)
 
@@ -190,34 +190,34 @@ class QueueThread(Thread):
                         continue
 
                     self.complete(job.inpath, elapsed.seconds)
-                    if not pytranscoder.keep_source:
-                        if pytranscoder.verbose:
-                            self.log(logger.info, f'replacing {job.inpath} with {outpath}')
-
-                        if overwrite:
-                            job.inpath.unlink()
-                            self.log(logger.info, f'original file {job.inpath} removed')
-
-                        if fls:
-                            completed_path = job.inpath.with_suffix(job.profile.extension)
-                            if not overwrite:
-                                completed_path = add_processed_suffix(completed_path)
-                            shutil.move(outpath,completed_path)
-                            self.log(logger.info, f'{outpath} moved to {completed_path}')
+                    if self.config.dest_dir():
+                        if keep_orig and self.config.dest_dir() == os.path.dirname(job.inpath):
+                            completed_path = add_processed_suffix(os.path.join(self.config.dest_dir(), os.path.basename(
+                                job.inpath.with_suffix(job.profile.extension))))
                         else:
-                            outpath.rename(job.inpath.with_suffix(job.profile.extension))
-
-                        self.log(logger.info, crayons.green(f'Finished {job.inpath}'))
+                            completed_path = os.path.join(self.config.dest_dir(),
+                                                  os.path.basename(job.inpath.with_suffix(job.profile.extension)))
                     else:
-                        self.log(logger.info, crayons.yellow(f'Finished {outpath}, original file unchanged'))
+                        completed_path = job.inpath.with_suffix(job.profile.extension)
+
+                    shutil.move(outpath, completed_path)
+                    self.log(logger.info, f'{outpath} moved to {completed_path}')
+                            # outpath.rename(job.inpath.with_suffix(job.profile.extension))
+                    if not keep_orig:
+                        job.inpath.unlink()
+                        self.log(logger.info, f'{job.inpath} removed')
+                    self.log(logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
+
                 elif code is not None:
                     self.log(logger.critical, f' Did not complete normally: {processor.last_command}')
                     self.log(logger.info, f'Output can be found in {processor.log_path}')
                     try:
                         outpath.unlink()
                         self.log(logger.info, f'{outpath} removed')
+
                     except Exception as err:
                         self.log(logger.warning, f'{outpath} NOT removed')
+                        self.log(logger.error, f'{err}')
             finally:
                 self.queue.task_done()
 
