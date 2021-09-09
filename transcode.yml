@@ -43,8 +43,8 @@ profiles:
        # - "-c:a aac"
         #- "-b:a 128k"
     extension: '.mp4'
-#    threshold: 18           # minimum of 18% compression required
-#    threshold_check: 20     # start checking threshold at 20% complete
+    threshold: 5         # minimum of 18% compression required
+    threshold_check: 10     # start checking threshold at 20% complete
 
     #
     # audio drop/keep handling

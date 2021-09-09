@@ -153,6 +153,10 @@ class QueueThread(Thread):
                                                     'comp': pct_comp,
                                                     'done': pct_done})
                     self.log(logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    if pct_comp < 0:
+                        self.log(logger.warning,
+                                 f'Encoding of {basename} cancelled and skipped due negative compression ratio')
+                        return True
                     if job.profile.threshold_check < 100:
                         if pct_done >= job.profile.threshold_check and pct_comp < job.profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...

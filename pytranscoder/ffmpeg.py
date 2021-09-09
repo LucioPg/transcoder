@@ -23,7 +23,7 @@ class FFmpeg(Processor):
 
     def __init__(self, ffmpeg_path: str):
         super().__init__(ffmpeg_path)
-        self.monitor_interval = 30
+        self.monitor_interval = 5
 
     def is_ffmpeg(self) -> bool:
         return True
