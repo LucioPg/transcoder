@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 from typing import Dict, List, Optional, Any
 
@@ -84,7 +83,6 @@ class Profile:
             if section_name in self.profile:
                 self.profile[section_name] = Options(profile[section_name])
 
-
     def get(self, key: str):
         return self.profile.get(key, None)
 
@@ -98,11 +96,11 @@ class Profile:
 
     @property
     def input_options(self) -> Options:
-        return self.profile["input_options"]
+        return self.profile.get("input_options", None)
 
     @property
     def output_options(self) -> Options:
-        return self.profile["output_options"]
+        return self.profile.get("output_options", None)
 
     @property
     def output_options_audio(self) -> Options:
@@ -118,7 +116,7 @@ class Profile:
 
     @property
     def extension(self) -> str:
-        return self.profile['extension']
+        return self.profile.get("extension", None)
 
     @extension.setter
     def extension(self, ext: str):
@@ -163,7 +161,7 @@ class Profile:
             return []
         return alist.split()
 
-    def include(self, parent):      # accepts dict or Profile object
+    def include(self, parent):  # accepts dict or Profile object
         # overlay this profile settings on top of parent profile to make a new one
         if isinstance(parent, dict):
             p = dict(parent)

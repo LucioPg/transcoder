@@ -127,13 +127,8 @@ class QueueThread(Thread):
                 #
                 # self.lock.acquire()  # used to synchronize threads so multiple threads don't create a jumble of output
                 try:
-                    separator = '-' * 40
-                    self.log(logger.info,
-                             f"""Filename : {crayons.green(os.path.basename(str(job.inpath)))}\n
-                    Profile  : {job.profile.name}\n{'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}""")
-                    # print('Filename : ' + crayons.green(os.path.basename(str(job.inpath))))
-                    # print(f'Profile  : {job.profile.name}')
-                    # print('{:<6}   : '.format(job.profile.processor) + ' '.join(cli) + '\n')
+                    self.log(logger.info, f"Filename : {crayons.green(os.path.basename(str(job.inpath)))}")
+                    self.log(logger.info, f"Profile  : {job.profile.name} {'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}")
                 except Exception as err:
                     self.log(logger.critical, f'{err}')
                 # finally:
@@ -396,15 +391,14 @@ def install_sigint_handler():
     signal.signal(signal.SIGINT, signal_handler)
 
 
-def main(cmd_line=False):
-    if cmd_line:
-        start()
+def main(cmd_line=True, folder_path=None):
+    if not cmd_line and folder_path:
+        start(folder_path)
     else:
         start_cmd_line()
 
 def start(path):
     install_sigint_handler()
-    is_dir = not os.path.isfile(path)
     configfile = ConfigFile(DEFAULT_CONFIG)
     files = get_files(path, configfile)
     queue_path = configfile.default_queue_file
@@ -553,7 +547,7 @@ def host_start(configfile, files, queue_path):
         cleanup_queuefile(queue_path, set(completed_paths))
         dump_stats(host.complete)
 
-    os.system("stty sane")
+    # os.system("stty sane")
 
 
 if __name__ == '__main__':

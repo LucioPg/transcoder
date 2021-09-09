@@ -86,12 +86,18 @@ def add_files_from_dir(queue_file, dirpath):
 
 def get_files(dirpath, config):
     files = []
+    recursive = config.settings.get('recursive', False)
     if os.path.exists(dirpath):
         if os.path.isdir(dirpath):
             from glob import glob
-            processor = config.get_processor()
-            exts= [f'*.{ext}' for ext in processor.get_all_extensions() if ext]
-            files = [(_file, None, None) for _path in os.walk(dirpath) for _file in glob(os.path.join(_path[0], '*.mp4')) if os.path.isfile(_file)]
+            if recursive:
+                os_func = lambda _path: os.walk(_path)
+            else:
+                os_func = lambda _path: os.listdir(_path)
+            exts = list({f'*{profile.extension}' for profile in config.profiles.values() if profile.extension is not None})
+            glob_list = lambda path: [new_path for ext in exts for new_path in glob(os.path.join(path[0], ext))]
+            files = [(_file, None, None) for _path in os_func(dirpath) for _file in
+                     glob_list(_path) if os.path.isfile(_file)]
         elif os.path.isfile(dirpath):
             files = [(dirpath, None, None)]
         return files
