@@ -5,7 +5,7 @@ from pytranscoder import verbose
 from pytranscoder.media import MediaInfo
 import logging
 
-valid_predicates = ['vcodec', 'res_height', 'res_width', 'runtime', 'filesize_mb', 'fps', 'path']
+valid_predicates = ['vcodec', 'res_height', 'res_width', 'runtime', 'filesize_mb', 'fps', 'path', 'check_completed_suffix']
 numeric_predicates = ['res_height', 'res_width', 'runtime', 'filesize_mb', 'fps']
 
 
@@ -56,20 +56,21 @@ class Rule:
                         if verbose:
                             print(f'  >> predicate path ("{value}") did not match {media_info.path}')
                         break
-                    elif self.skip_str:
-                        match = re.search(self.skip_str, media_info.path)
-                        if match is None:
-                            if verbose:
-                                print(f'  >> the file {media_info.path} has already been converted')
-                            self.logger.warning(f'>> the file {media_info.path} has already been converted')
-                            break
-
                 except Exception as ex:
                     print(f'invalid regex {media_info.path} in rule {self.name}')
                     if verbose:
                         print(str(ex))
                     exit(0)
-
+            if pred == 'check_completed_suffix' and value:
+                if self.skip_str:
+                    match = re.search(self.skip_str, media_info.path)
+                    if match is None:
+                        if verbose:
+                            print(f'  >> the file {media_info.path} has already been converted')
+                        self.logger.warning(f'>> the file {media_info.path} has already been converted')
+                        break
+                else:
+                    self.logger.warning(f'>>failed check completed suffix for the file {media_info.path}. Check the parameter "completed_suffix_regex" in the config file')
             if pred in numeric_predicates:
                 comp = media_info.eval_numeric(self.name, pred, value)
                 if not comp and not inverted:

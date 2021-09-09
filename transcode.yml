@@ -301,4 +301,4 @@ rules:
       profile: hevc_cuda
       criteria:
         vcodec: '!hevc'
-
+        check_completed_suffix: yes
