@@ -64,7 +64,7 @@ class Rule:
             if pred == 'check_completed_suffix' and value:
                 if self.skip_str:
                     match = re.search(self.skip_str, media_info.path)
-                    if match is None:
+                    if match is not None:
                         if verbose:
                             print(f'  >> the file {media_info.path} has already been converted')
                         self.logger.warning(f'>> the file {media_info.path} has already been converted')
