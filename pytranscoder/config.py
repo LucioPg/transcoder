@@ -44,7 +44,7 @@ class ConfigFile:
                     self.profiles[name].include(self.profiles[parent_name])
 
             for name, rule in yml['rules'].items():
-                self.rules[name] = Rule(name, rule, self.settings.get('converted_suffix_regex', None))
+                self.rules[name] = Rule(name, rule, self.settings.get('completed_suffix_regex', None))
 
             if 'queues' in self.settings:
                 self.queues = self.settings['queues']
