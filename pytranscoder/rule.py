@@ -3,19 +3,22 @@ from typing import Dict
 
 from pytranscoder import verbose
 from pytranscoder.media import MediaInfo
+import logging
 
 valid_predicates = ['vcodec', 'res_height', 'res_width', 'runtime', 'filesize_mb', 'fps', 'path']
 numeric_predicates = ['res_height', 'res_width', 'runtime', 'filesize_mb', 'fps']
 
 
 class Rule:
-    def __init__(self, name: str, rule: Dict):
+    def __init__(self, name: str, rule: Dict, skip_str: str=None):
         self.name = name
         self.profile = rule['profile']
+        self.skip_str = skip_str
         if 'criteria' in rule:
             self.criteria = rule['criteria']
         else:
             self.criteria = None
+        self.logger = logging.getLogger('Evaluating rules')
 
     def is_skip(self):
         return self.profile.upper() == 'SKIP'
@@ -53,6 +56,14 @@ class Rule:
                         if verbose:
                             print(f'  >> predicate path ("{value}") did not match {media_info.path}')
                         break
+                    elif self.skip_str:
+                        match = re.search(self.skip_str, media_info.path)
+                        if match is None:
+                            if verbose:
+                                print(f'  >> the file {media_info.path} has already been converted')
+                            self.logger.warning(f'>> the file {media_info.path} has already been converted')
+                            break
+
                 except Exception as ex:
                     print(f'invalid regex {media_info.path} in rule {self.name}')
                     if verbose:

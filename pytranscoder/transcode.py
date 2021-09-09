@@ -41,8 +41,8 @@ if not os.path.exists(config_path):
     sys.exit(-1)
 
 DEFAULT_CONFIG = config_path
-PROCESSES_SUFFIX_SEPARATOR = '_'
-PROCESSED_SUFFIX = f'{PROCESSES_SUFFIX_SEPARATOR}cuda'
+DEFAULT_PROCESSES_SUFFIX_SEPARATOR = '_'
+DEFAULT_PROCESSED_SUFFIX = f'{DEFAULT_PROCESSES_SUFFIX_SEPARATOR}cuda'
 
 class LocalJob:
     """One file with matched profile to be encoded"""
@@ -166,7 +166,8 @@ class QueueThread(Thread):
 
                 def add_processed_suffix(_output):
                     base, ext = os.path.splitext(_output)
-                    base += PROCESSED_SUFFIX
+                    suffix = self.config.settings.get('completed_suffix', DEFAULT_PROCESSED_SUFFIX)
+                    base += DEFAULT_PROCESSED_SUFFIX
 
                     return PurePath(base + ext)
 

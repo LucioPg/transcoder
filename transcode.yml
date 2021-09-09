@@ -13,6 +13,8 @@ config:
   colorize: yes
   fls_path: '/tmp'
   overwrite: no
+  completed_suffix_regex: '_cuda.*$'
+  completed_suffix: '_cuda'
 
 #######################################################
 # Profile definitions section
