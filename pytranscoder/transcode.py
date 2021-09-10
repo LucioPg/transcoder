@@ -245,7 +245,7 @@ class QueueThread(Thread):
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
 
-                    self.log(logger, logger.info, f'{get_size_text(diff_size)} {"SAVED" if int(diff_size)[0] >= 0 else "LOOSE"}')
+                    self.log(logger, logger.info, f'{get_size_text(diff_size)} {"SAVED" if int(diff_size[0]) >= 0 else "LOOSE"}')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
                 elif code is not None:
