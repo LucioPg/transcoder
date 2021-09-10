@@ -87,15 +87,7 @@ class QueueThread(Thread):
         self.lock.acquire()
 
         if only_console:
-            file_handlers= []
-            for hand in logger.handlers:
-                if isinstance(hand, logging.FileHandler):
-                    file_handlers.append(hand)
-            for hand in file_handlers:
-                logger.removeHandler(hand)
-            logger_func(message)
-            for hand in file_handlers:
-                logger.addHandler(hand)
+            logger.debug(message)
         else:
             logger_func(message)
         if flush:
@@ -152,7 +144,7 @@ class QueueThread(Thread):
                                                     'comp': pct_comp,
                                                     'done': pct_done})
 
-                    self.log(logger, logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
+                    self.log(logger, logger.info, f'speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
                     if pct_comp < 0:
                         self.log(logger, logger.warning,
                                  f'Encoding of {basename} cancelled and skipped due negative compression ratio')
@@ -204,21 +196,32 @@ class QueueThread(Thread):
                             self.log(logger, logger.warning, f'The destination folder {destination} does not exist and can not be created')
                             self.log(logger, logger.info, f'Changing the invalid destination folder to the temp output {self.config.tmp_dir()}')
                             destination = outpath.parent
-                        if keep_orig and destination == os.path.dirname(job.inpath) or not self.config.overwrite():
-                            completed_path = add_processed_suffix(os.path.join(destination, os.path.basename(
-                                job.inpath.with_suffix(job.profile.extension))))
+                        if destination == os.path.dirname(job.inpath):
+                            if keep_orig:
+                                completed_path = add_processed_suffix(os.path.join(destination, os.path.basename(
+                                    job.inpath.with_suffix(job.profile.extension))))
+                            else:
+                                completed_path = os.path.join(destination,
+                                                              os.path.basename(
+                                                                  job.inpath.with_suffix(job.profile.extension)))
                         else:
                             completed_path = os.path.join(destination,
-                                                  os.path.basename(job.inpath.with_suffix(job.profile.extension)))
+                                                          os.path.basename(
+                                                              job.inpath.with_suffix(job.profile.extension)))
+                            if not keep_orig:
+                                job.inpath.unlink(missing_ok=True)
+                                self.log(logger, logger.info, f'ORIGINAL REMOVED')
+
                     else:
-                        completed_path = job.inpath.with_suffix(job.profile.extension)
+                        if keep_orig:
+                            completed_path = add_processed_suffix( job.inpath.with_suffix(job.profile.extension))
+                        else:
+                            completed_path = job.inpath.with_suffix(job.profile.extension)
+                            self.log(logger, logger.info, f'ORIGINAL OVERWRITTEN')
 
                     shutil.move(outpath, completed_path)
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
-                    if not keep_orig:
-                        job.inpath.unlink()
-                        self.log(logger, logger.info, f'{job.inpath} removed')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
                 elif code is not None:

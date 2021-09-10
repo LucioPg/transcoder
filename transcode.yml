@@ -16,8 +16,7 @@ config:
   completed_suffix_regex: '_cuda.*$'
   completed_suffix: '_cuda'
   recursive: no
-  keep_orig: yes
-  overwrite: yes
+  keep_orig: no
 
 #######################################################
 # Profile definitions section
