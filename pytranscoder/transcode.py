@@ -84,9 +84,21 @@ class QueueThread(Thread):
     def run(self):
         self.go()
 
-    def log(self, logger, message, flush=False):
+    def log(self, logger, message, flush=False, only_console=False):
         self.lock.acquire()
-        logger(message)
+
+        if only_console:
+            file_handlers= []
+            for hand in logger.handlers:
+                if isinstance(hand, logging.FileHandler):
+                    file_handlers.append(hand)
+            for hand in file_handlers:
+                logger.removeHandler(hand)
+            logger(message)
+            for hand in file_handlers:
+                logger.addHandler(hand)
+        else:
+            logger(message)
         if flush:
             sys.stdout.flush()
         self.lock.release()
@@ -148,6 +160,7 @@ class QueueThread(Thread):
                                                     'speed': stats['speed'],
                                                     'comp': pct_comp,
                                                     'done': pct_done})
+
                     self.log(logger_progress_stream.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
                     if pct_comp < 0:
                         self.log(logger.warning,
