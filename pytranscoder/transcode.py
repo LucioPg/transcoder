@@ -83,7 +83,7 @@ class QueueThread(Thread):
     def run(self):
         self.go()
 
-    def log(self, logger, message, flush=False, only_console=False):
+    def log(self, logger, logger_func, message, flush=False, only_console=False):
         self.lock.acquire()
 
         if only_console:
@@ -93,11 +93,11 @@ class QueueThread(Thread):
                     file_handlers.append(hand)
             for hand in file_handlers:
                 logger.removeHandler(hand)
-            logger(message)
+            logger_func(message)
             for hand in file_handlers:
                 logger.addHandler(hand)
         else:
-            logger(message)
+            logger_func(message)
         if flush:
             sys.stdout.flush()
         self.lock.release()
@@ -139,10 +139,10 @@ class QueueThread(Thread):
                 #
                 # self.lock.acquire()  # used to synchronize threads so multiple threads don't create a jumble of output
                 try:
-                    self.log(logger.info, f"Filename : {crayons.green(os.path.basename(str(job.inpath)))}")
-                    self.log(logger.info, f"Profile  : {job.profile.name} {'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}")
+                    self.log(logger, logger.info, f"Filename : {crayons.green(os.path.basename(str(job.inpath)))}")
+                    self.log(logger, logger.info, f"Profile  : {job.profile.name} {'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}")
                 except Exception as err:
-                    self.log(logger.critical, f'{err}')
+                    self.log(logger, logger.critical, f'{err}')
                 # finally:
                 #     self.lock.release()
 
@@ -160,20 +160,20 @@ class QueueThread(Thread):
                                                     'comp': pct_comp,
                                                     'done': pct_done})
 
-                    self.log(logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
+                    self.log(logger, logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
                     if pct_comp < 0:
-                        self.log(logger.warning,
+                        self.log(logger, logger.warning,
                                  f'Encoding of {basename} cancelled and skipped due negative compression ratio')
                         return True
                     if job.profile.threshold_check < 100:
                         if pct_done >= job.profile.threshold_check and pct_comp < job.profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...
-                            self.log(logger.warning, f'Encoding of {basename} cancelled and skipped due to threshold not met')
+                            self.log(logger, logger.warning, f'Encoding of {basename} cancelled and skipped due to threshold not met')
                             return True
                     return False
 
                 def hbcli_callback(stats):
-                    self.log(logger.info, f'{basename}: avg fps: {stats["fps"]}, ETA: {stats["eta"]}')
+                    self.log(logger, logger.info, f'{basename}: avg fps: {stats["fps"]}, ETA: {stats["eta"]}')
                     return False
 
                 def add_processed_suffix(_output):
@@ -195,11 +195,11 @@ class QueueThread(Thread):
                 if code == 0:
                     if not filter_threshold(job.profile, str(job.inpath), outpath):
                         # oops, this transcode didn't do so well, lets keep the original and scrap this attempt
-                        self.log(logger.warning, f'Transcoded file {job.inpath} did not meet minimum savings threshold, skipped')
+                        self.log(logger, logger.warning, f'Transcoded file {job.inpath} did not meet minimum savings threshold, skipped')
                         self.complete(job.inpath, (job_stop - job_start).seconds)
-                        self.log(logger.info, f'completed: {job.inpath} in {(job_stop - job_start).seconds}')
+                        self.log(logger, logger.info, f'completed: {job.inpath} in {(job_stop - job_start).seconds}')
                         os.unlink(str(outpath))
-                        self.log(logger.info, f'{outpath} removed')
+                        self.log(logger, logger.info, f'{outpath} removed')
                         continue
 
                     self.complete(job.inpath, elapsed.seconds)
@@ -208,9 +208,9 @@ class QueueThread(Thread):
                         try:
                             os.makedirs(destination,exist_ok=True)
                         except Exception as err:
-                            self.log(logger.error,str(err))
-                            self.log(logger.warning, f'The destination folder {destination} does not exist and can not be created')
-                            self.log(logger.info, f'Changing the invalid destination folder to the temp output {self.config.tmp_dir()}')
+                            self.log(logger, logger.error,str(err))
+                            self.log(logger, logger.warning, f'The destination folder {destination} does not exist and can not be created')
+                            self.log(logger, logger.info, f'Changing the invalid destination folder to the temp output {self.config.tmp_dir()}')
                             destination = outpath.parent
                         if keep_orig and destination == os.path.dirname(job.inpath):
                             completed_path = add_processed_suffix(os.path.join(destination, os.path.basename(
@@ -222,23 +222,23 @@ class QueueThread(Thread):
                         completed_path = job.inpath.with_suffix(job.profile.extension)
 
                     shutil.move(outpath, completed_path)
-                    self.log(logger.info, f'{outpath} moved to {completed_path}')
+                    self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
                     if not keep_orig:
                         job.inpath.unlink()
-                        self.log(logger.info, f'{job.inpath} removed')
-                    self.log(logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
+                        self.log(logger, logger.info, f'{job.inpath} removed')
+                    self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
                 elif code is not None:
-                    self.log(logger.critical, f' Did not complete normally: {processor.last_command}')
-                    self.log(logger.info, f'Output can be found in {processor.log_path}')
+                    self.log(logger, logger.critical, f' Did not complete normally: {processor.last_command}')
+                    self.log(logger, logger.info, f'Output can be found in {processor.log_path}')
                     try:
                         outpath.unlink()
-                        self.log(logger.info, f'{outpath} removed')
+                        self.log(logger, logger.info, f'{outpath} removed')
 
                     except Exception as err:
-                        self.log(logger.warning, f'{outpath} NOT removed')
-                        self.log(logger.error, f'{err}')
+                        self.log(logger, logger.warning, f'{outpath} NOT removed')
+                        self.log(logger, logger.error, f'{err}')
             finally:
                 self.queue.task_done()
 
