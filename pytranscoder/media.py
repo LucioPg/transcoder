@@ -1,4 +1,4 @@
-
+import logging
 import os
 import re
 from datetime import timedelta
@@ -48,6 +48,7 @@ class MediaInfo:
         return len(self.audio) > 1 or len(self.subtitle) > 1
 
     def _map_streams(self, stream_type: str, streams: List, excludes: list, includes: list, defl: str) -> list:
+        logger = logging.getLogger('Mapping streams')
         if excludes is None:
             excludes = []
         if not includes:
@@ -78,7 +79,8 @@ class MediaInfo:
 
         if default_reassign:
             if defl is None:
-                print('Warning: A default stream will be removed but no default language specified to replace it')
+                logger.warning('Warning: A default stream will be removed but no default language specified to replace it')
+                # print('Warning: A default stream will be removed but no default language specified to replace it')
             else:
                 for i, s in enumerate(mapped):
                     if s.get('lang', None) == defl:
@@ -114,15 +116,19 @@ class MediaInfo:
 
     def eval_numeric(self, rulename: str, pred: str, value: str) -> bool:
         attr = self.__dict__.get(pred, None)
+        logger = logging.getLogger('Evaluating numeric expressions')
         if attr is None:
-            print(f'Error: Rule "{rulename}" unknown attribute: {pred} ')
+            logger.critical(f'Error: Rule "{rulename}" unknown attribute: {pred} ')
+            # print(f'Error: Rule "{rulename}" unknown attribute: {pred} ')
+
             raise ValueError(value)
 
         if '-' in value:
             # this is a range expression
             parts = value.split('-')
             if len(parts) != 2:
-                print(f'Error: Rule "{rulename}" bad range expression: {value} ')
+                # print(f'Error: Rule "{rulename}" bad range expression: {value} ')
+                logger.critical(f'Error: Rule "{rulename}" bad range expression: {value} ')
                 raise ValueError(value)
             rangelow, rangehigh = parts
 
@@ -151,26 +157,31 @@ class MediaInfo:
             expr = f'{attr} {op} {value}'
 
         else:
-            print(f'Error: Rule "{rulename}" valid value: {value}')
+            logger.info(f'Error: Rule "{rulename}" valid value: {value}')
+            # print(f'Error: Rule "{rulename}" valid value: {value}')
             return False
 
-        if not eval(expr):
+        logger.warning(f'running eval against {expr}')
+        if not eval(expr): ### TODO CHANGE DANGEROUS!!!!
             if verbose:
-                print(f'  >> predicate {pred} ("{value}") did not match {attr}')
+                logger.info(f'  >> predicate {pred} ("{value}") did not match {attr}')
+                # print(f'  >> predicate {pred} ("{value}") did not match {attr}')
             return False
         return True
 
     @staticmethod
     def parse_ffmpeg_details(_path, output):
-
+        logger = logging.getLogger('Parsing video details')
         match1 = video_dur.match(output)
         if match1 is None or len(match1.groups()) < 3:
-            print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            # print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            logger.info(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
             return MediaInfo(None)
 
         match2 = video_info.match(output)
         if match2 is None or len(match2.groups()) < 5:
-            print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            # print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            logger.info(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
             return MediaInfo(None)
 
         audio_tracks = list()
@@ -280,12 +291,12 @@ class MediaInfo:
 
         match1 = video_dur.match(output)
         if match1 is None or len(match1.groups()) < 3:
-            print(f'>>>> regex match on video stream data failed: HandBrakeCLI -i {_path}')
+            # print(f'>>>> regex match on video stream data failed: HandBrakeCLI -i {_path}')
             return MediaInfo(None)
 
         match2 = video_info.match(output)
         if match2 is None or len(match2.groups()) < 5:
-            print(f'>>>> regex match on video stream data failed: HandBrakeCLI -i {_path}')
+            # print(f'>>>> regex match on video stream data failed: HandBrakeCLI -i {_path}')
             return MediaInfo(None)
 
         audio_tracks = list()

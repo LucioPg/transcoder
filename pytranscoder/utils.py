@@ -114,6 +114,8 @@ def get_files(dirpath, config):
 
 def convert_unit(size_in_bytes, unit):
     """ Convert the size from bytes to other units like KB, MB or GB"""
+    if not size_in_bytes:
+        return size_in_bytes
     if unit == SizeUnit.KB:
         return size_in_bytes / 1024
     elif unit == SizeUnit.MB:
@@ -129,12 +131,19 @@ def auto_convert_unit(size_in_bytes, text=True):
         sizes = sorted([siz for siz in SizeUnit], reverse=True)
         for _size in sizes:
             result = convert_unit(size_in_bytes, _size)
+            if size_in_bytes < 0 or not result:
+                result_tuple = (0, SizeUnit(1))  # BYTES
+                if text:
+                    return get_size_text(result_tuple)
+                else:
+                    return result_tuple
             if result >= 1:
                 result_tuple = round(result, 2), _size
                 if text:
                     return get_size_text(result_tuple)
                 else:
                     return result_tuple
+
 
         from exceptions import SizeNotConvertible
         raise SizeNotConvertible(size_in_bytes)
@@ -143,12 +152,14 @@ def auto_convert_unit(size_in_bytes, text=True):
         raise WrongSizeType(size_in_bytes)
 
 def get_diff_size(old_size, new_size):
-    return auto_convert_unit(new_size - old_size)
+    return auto_convert_unit(old_size - new_size, text=False)
 
 def get_size_text(_size: tuple):
     if len(_size) == 2:
         num, unit = _size
         if isinstance(num, (int, float)) and isinstance(unit, SizeUnit):
-            f'{round(num, 2)} {unit.name}'
+            return f'{round(num, 2)} {unit.name}'
         else:
             raise ErrorSizeTextConversion(_size)
+    else:
+        raise ErrorSizeTextConversion(_size)

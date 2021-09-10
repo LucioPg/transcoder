@@ -20,8 +20,9 @@ from pytranscoder.cluster import manage_clusters
 from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats, get_sizes, get_diff_size
-
+from pytranscoder.utils import get_files, filter_threshold, files_from_file,\
+                                calculate_progress, dump_stats, get_sizes, get_diff_size, get_size_text
+from traceback import format_exc
 
 the_main_filename = sys.argv[0]
 MAIN_DIR = os.path.dirname(the_main_filename)
@@ -69,6 +70,7 @@ class QueueThread(Thread):
         self.config = configfile
         self._manager = manager
         self.basename = ''
+        self.total_orig_size, self.total_new_size, self.total_session_time, self.errors = 0, 0, datetime.timedelta(), []
 
     @property
     def lock(self):
@@ -95,14 +97,25 @@ class QueueThread(Thread):
         self.lock.release()
 
     def go(self):
-        total_orig_size = total_new_size = total_session_time = 0
+        files_to_remove = []
+        errors = []
+        logger = None
         while not self.queue.empty():
+            orig_size = new_size  = 0
+            session_time = datetime.timedelta()
+            job = outpath = None
             try:
                 job: LocalJob = self.queue.get()
+            except Exception as err:
+                if logger is None:
+                    logger = logging.getLogger('Spoiling queue')
+                    logger.warning('The queue is empty')
+                    break
+            try:
+
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
                 logger = logging.getLogger(f'Processing {job.inpath.name}')
-                orig_size = new_size, session_time = 0
                 keep_orig = self.config.keep_orig()
                 if self.config.tmp_dir():
                     # lets write output to local storage, for efficiency
@@ -180,16 +193,13 @@ class QueueThread(Thread):
                         self.log(logger, logger.warning, f'Transcoded file {job.inpath} did not meet minimum savings threshold, skipped')
                         self.complete(job.inpath, (job_stop - job_start).seconds)
                         self.log(logger, logger.info, f'completed: {job.inpath} in {(job_stop - job_start).seconds}')
-                        os.unlink(str(outpath))
+                        files_to_remove.append(str(outpath))
+                        # os.unlink(str(outpath))
                         self.log(logger, logger.info, f'{outpath} removed')
                         continue
 
                     self.complete(job.inpath, elapsed.seconds)
-                    session_time = elapsed.seconds
-                    orig_size, new_size = get_sizes(job.inpath, outpath)
-                    total_orig_size += orig_size
-                    total_new_size += new_size
-                    total_session_time += session_time
+                    session_time = datetime.timedelta(seconds=elapsed.seconds)
                     destination = self.config.dest_dir()
                     if destination:
                         try:
@@ -212,8 +222,9 @@ class QueueThread(Thread):
                                                           os.path.basename(
                                                               job.inpath.with_suffix(job.profile.extension)))
                             if not keep_orig:
-                                job.inpath.unlink(missing_ok=True)
-                                self.log(logger, logger.info, f'ORIGINAL REMOVED')
+                                files_to_remove.append(job.inpath)
+                                # job.inpath.unlink(missing_ok=True)
+                                self.log(logger, logger.info, f'ORIGINAL IS GOING TO BE REMOVED')
 
                     else:
                         if keep_orig:
@@ -221,12 +232,20 @@ class QueueThread(Thread):
                         else:
                             completed_path = job.inpath.with_suffix(job.profile.extension)
                             self.log(logger, logger.info, f'ORIGINAL OVERWRITTEN')
-
-                    shutil.move(outpath, completed_path)
+                    orig_size, new_size = get_sizes(job.inpath, outpath)
+                    diff_size = get_diff_size(orig_size, new_size)
+                    if not os.path.exists(os.path.dirname(completed_path)):
+                        try:
+                            os.makedirs(os.path.dirname(completed_path))
+                            self.log(logger, logger.info, f'The destination folder has been created {os.path.dirname(completed_path)}')
+                        except Exception as err:
+                            self.log(logger, logger.critical, str(err))
+                    #     os.remove(completed_path)
+                    shutil.move(str(outpath), str(completed_path))
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
-                    diff_size = get_diff_size(orig_size, new_size)
-                    self.log(logger, logger.info, f'{diff_size} {"SAVED" if diff_size >= 0 else "LOOSE"}')
+
+                    self.log(logger, logger.info, f'{get_size_text(diff_size)} {"SAVED" if int(diff_size)[0] >= 0 else "LOOSE"}')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
                 elif code is not None:
@@ -234,15 +253,43 @@ class QueueThread(Thread):
                     self.log(logger, logger.info, f'Output can be found in {processor.log_path}')
                     try:
                         outpath.unlink()
+
                         self.log(logger, logger.info, f'{outpath} removed')
 
                     except Exception as err:
                         self.log(logger, logger.warning, f'{outpath} NOT removed')
                         self.log(logger, logger.error, f'{err}')
+
+            except Exception as err:
+                stack = format_exc()
+                if logger is not None:
+                    logger = logging.getLogger('Processing')
+                self.log(logger, logger.debug, f'{stack}', only_console=True)
+                errors.append(err)
             finally:
                 self.queue.task_done()
+                self.errors.extend(errors)
+                try:
+                    # orig_size, new_size = get_sizes(job.inpath, completed_path)
+                    self.total_orig_size += orig_size
+                    self.total_new_size += new_size
+                    self.total_session_time += session_time
+                except Exception as err:
+                    stack = format_exc()
+                    self.log(logger, logger.debug, f'{stack}', only_console=True)
+                    self.errors.append(err)
+            if not self.errors:
+                for _file in files_to_remove:
+                    try:
+                        os.unlink(str(_file))
+                        self.log(logger, logger.info, f'actually removing {_file}')
+                    except Exception as err:
+                        stack = format_exc()
+                        self.log(logger, logger.debug, f'{stack}', only_console=True)
+                        self.errors.append(err)
 
-        return total_orig_size, total_new_size, total_session_time
+
+
 
 class LocalHost:
     """Encapsulates functionality for local encoding"""
@@ -253,7 +300,7 @@ class LocalHost:
     def __init__(self, configfile: ConfigFile):
         self.queues = dict()
         self.configfile = configfile
-
+        self.total_orig_size, self.total_new_size, self.total_session_time, self.errors = 0, 0, datetime.timedelta(), []
         #
         # initialize the queues
         #
@@ -303,6 +350,11 @@ class LocalHost:
                 for job in jobs:
                     if job.is_alive():
                         busy = True
+                    else:
+                        self.total_orig_size += job.total_orig_size
+                        self.total_new_size += job.total_new_size
+                        self.total_session_time += job.total_session_time
+                        self.errors.extend(job.errors)
 
         # wait for all queues to drain and all jobs to complete
 #        for _, queue in self.queues.items():
@@ -314,20 +366,22 @@ class LocalHost:
         :param files: list of (path,profile) tuples
         :return:
         """
-
+        logger = logging.getLogger('Enqueue files')
         for path, forced_profile, mixins in files:
             #
             # do some prechecks...
             #
             if forced_profile is not None and not self.configfile.has_profile(forced_profile):
-                print(f'profile "{forced_profile}" referenced from command line not found')
+                # print(f'profile "{forced_profile}" referenced from command line not found')
+                logger.critical(f'profile "{forced_profile}" referenced from command line not found')
                 sys.exit(1)
 
             if len(path) == 0:
                 continue
 
             if not os.path.isfile(path):
-                print(crayons.red('file not found, skipping: ' + path))
+                # print(crayons.red('file not found, skipping: ' + path))
+                logger.critical(f'File not found: {path}')
                 continue
 
             processor_name = 'ffmpeg'
@@ -341,21 +395,22 @@ class LocalHost:
             media_info = processor.fetch_details(path)
 
             if media_info is None:
-                print(crayons.red(f'File not found: {path}'))
+                logger.critical(f'File not found: {path}')
+                # print(crayons.red(f'File not found: {path}'))
                 continue
 
             if media_info.valid:
-
-                if pytranscoder.verbose:
-                    print(str(media_info))
+                logger.debug(media_info)
 
                 if forced_profile is None:
                     rule = self.configfile.match_rule(media_info)
                     if rule is None:
-                        print(crayons.green(os.path.basename(path)), crayons.yellow(f'No matching profile found - skipped'))
+                        # print(crayons.green(os.path.basename(path)), crayons.yellow(f'No matching profile found - skipped'))
+                        logger.info(f'No matching profile found - skipped')
                         continue
                     if rule.is_skip():
-                        print(crayons.green(os.path.basename(path)), f'SKIPPED ({rule.name})')
+                        # print(crayons.green(os.path.basename(path)), f'SKIPPED ({rule.name})')
+                        logger.info(f'SKIPPED ({rule.name})')
                         self.complete.append((path, 0))
                         continue
                     profile_name = rule.profile
@@ -374,11 +429,13 @@ class LocalHost:
                         print(crayons.red(
                             f'Profile "{profile_name}" indicated queue "{qname}" that has not been defined')
                         )
+                        logger.critical(f'Profile "{profile_name}" indicated queue "{qname}" that has not been defined')
                         sys.exit(1)
                     else:
                         self.queues[qname].put(LocalJob(path, the_profile, mixins, media_info))
                         if pytranscoder.verbose:
                             print('Added to queue {qname}')
+                            logger.debug(f'Added to queue {qname}')
                 else:
                     self.queues['_default_'].put(LocalJob(path, the_profile, mixins, media_info))
 
@@ -415,9 +472,9 @@ def install_sigint_handler():
 
 def main(cmd_line=True, folder_path=None):
     if not cmd_line and folder_path:
-        start(folder_path)
+        return start(folder_path)
     else:
-        start_cmd_line()
+        return start_cmd_line()
 
 def start(path):
     install_sigint_handler()
@@ -430,8 +487,8 @@ def start(path):
         crayons.disable()
     else:
         crayons.enable()
-    host_start(configfile, files, queue_path)
-
+    total_orig_size, total_new_size, total_session_time, errors = host_start(configfile, files, queue_path)
+    return total_orig_size, total_new_size, total_session_time, errors
 
 
 
@@ -554,8 +611,8 @@ def start_cmd_line():
         sys.exit(0)
 
 
-    host_start(configfile, files, queue_path)
-
+    total_orig_size, total_new_size, total_session_time, errors = host_start(configfile, files, queue_path)
+    return total_orig_size, total_new_size, total_session_time, errors
 
 def host_start(configfile, files, queue_path):
     host = LocalHost(configfile)
@@ -568,7 +625,7 @@ def host_start(configfile, files, queue_path):
         completed_paths = [p for p, _ in host.complete]
         cleanup_queuefile(queue_path, set(completed_paths))
         dump_stats(host.complete)
-
+    return host.total_orig_size, host.total_new_size, host.total_session_time, host.errors
     # os.system("stty sane")
 
 
