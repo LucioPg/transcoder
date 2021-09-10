@@ -20,7 +20,7 @@ from pytranscoder.cluster import manage_clusters
 from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats
+from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats, init_logger_strm
 
 
 the_main_filename = sys.argv[0]
@@ -99,6 +99,7 @@ class QueueThread(Thread):
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
                 logger = logging.getLogger(f'Processing {job.inpath.name}')
+                logger_progress_stream = init_logger_strm()
                 fls = False
                 keep_orig = self.config.keep_orig()
                 if self.config.tmp_dir():
@@ -147,7 +148,7 @@ class QueueThread(Thread):
                                                     'speed': stats['speed'],
                                                     'comp': pct_comp,
                                                     'done': pct_done})
-                    self.log(logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log(logger_progress_stream.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
                     if pct_comp < 0:
                         self.log(logger.warning,
                                  f'Encoding of {basename} cancelled and skipped due negative compression ratio')

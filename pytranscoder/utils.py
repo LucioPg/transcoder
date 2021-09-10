@@ -8,7 +8,19 @@ from functools import wraps
 import pytranscoder
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
+import logging
 
+
+def init_logger_strm(name='Progress'):
+    logger_progress_stream = logging.getLogger()
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    # create formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    # add the handlers to the logger
+    logger_progress_stream.addHandler(ch)
+    return logger_progress_stream
 
 def filter_threshold(profile: Profile, inpath, outpath):
     if profile.threshold > 0:
