@@ -43,7 +43,7 @@ if not os.path.exists(config_path):
 DEFAULT_CONFIG = config_path
 DEFAULT_PROCESSES_SUFFIX_SEPARATOR = '_'
 DEFAULT_PROCESSED_SUFFIX = f'{DEFAULT_PROCESSES_SUFFIX_SEPARATOR}cuda'
-
+logger_progress_stream = init_logger_strm()
 class LocalJob:
     """One file with matched profile to be encoded"""
 
@@ -99,7 +99,7 @@ class QueueThread(Thread):
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
                 logger = logging.getLogger(f'Processing {job.inpath.name}')
-                logger_progress_stream = init_logger_strm()
+
                 fls = False
                 keep_orig = self.config.keep_orig()
                 if self.config.tmp_dir():
