@@ -57,8 +57,11 @@ class ConfigFile:
     def dest_dir(self) -> str:
         return self.settings.get('dest_dir', None)
 
-    def keep_orig(self) -> bool:
+    def overwrite(self) -> bool:
         return self.settings.get('keep_orig', True)
+
+    def keep_orig(self) -> bool:
+        return self.settings.get('overwrite', True)
 
     def colorize(self) -> bool:
         return self.settings.get('colorize', 'no').lower() == 'yes'

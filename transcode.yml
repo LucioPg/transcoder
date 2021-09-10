@@ -17,6 +17,7 @@ config:
   completed_suffix: '_cuda'
   recursive: no
   keep_orig: yes
+  overwrite: yes
 
 #######################################################
 # Profile definitions section

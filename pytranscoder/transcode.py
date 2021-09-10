@@ -133,19 +133,11 @@ class QueueThread(Thread):
                     cli = [ overwrite_flag, '-i', str(job.inpath), *input_opt,  str(outpath), *output_opt]
                 else:
                     cli = ['-i', str(job.inpath), *input_opt, *output_opt, '-o', str(outpath)]
-
-                #
-                # display useful information
-                #
-                # self.lock.acquire()  # used to synchronize threads so multiple threads don't create a jumble of output
                 try:
                     self.log(logger, logger.info, f"Filename : {crayons.green(os.path.basename(str(job.inpath)))}")
                     self.log(logger, logger.info, f"Profile  : {job.profile.name} {'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}")
                 except Exception as err:
                     self.log(logger, logger.critical, f'{err}')
-                # finally:
-                #     self.lock.release()
-
 
                 if pytranscoder.dry_run:
                     continue
@@ -212,7 +204,7 @@ class QueueThread(Thread):
                             self.log(logger, logger.warning, f'The destination folder {destination} does not exist and can not be created')
                             self.log(logger, logger.info, f'Changing the invalid destination folder to the temp output {self.config.tmp_dir()}')
                             destination = outpath.parent
-                        if keep_orig and destination == os.path.dirname(job.inpath):
+                        if keep_orig and destination == os.path.dirname(job.inpath) or not self.config.overwrite():
                             completed_path = add_processed_suffix(os.path.join(destination, os.path.basename(
                                 job.inpath.with_suffix(job.profile.extension))))
                         else:
