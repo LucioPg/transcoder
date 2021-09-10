@@ -8,15 +8,21 @@ from functools import wraps
 import pytranscoder
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
+from .exceptions import ErrorSizeTextConversion, DoesNotExistFilePath, ErrorEmptyFilePath
+from .enums.Enums import SizeUnit
 
 
 def filter_threshold(profile: Profile, inpath, outpath):
     if profile.threshold > 0:
-        orig_size = os.path.getsize(inpath)
-        new_size = os.path.getsize(outpath)
+        orig_size, new_size = get_sizes(inpath, outpath)
         return is_exceeded_threshold(profile.threshold, orig_size, new_size)
     return True
 
+
+def get_sizes(inpath, outpath):
+    orig_size = os.path.getsize(inpath)
+    new_size = os.path.getsize(outpath)
+    return orig_size, new_size
 
 def is_exceeded_threshold(pct_threshold: int, orig_size: int, new_size: int) -> bool:
     pct_savings = 100 - math.floor((new_size * 100) / orig_size)
@@ -79,10 +85,11 @@ def dump_stats(completed):
     print()
 
 
-def add_files_from_dir(queue_file, dirpath):
+def add_files_from_dir(queue_file, dirpath, config):
     if os.path.exists(dirpath):
         with open(queue_file, 'w') as f:
-            f.writelines(get_files(dirpath))
+            files = [_file[0] for _file in get_files(dirpath, config)]
+            f.writelines(files)
 
 
 def get_files(dirpath, config):
@@ -103,5 +110,45 @@ def get_files(dirpath, config):
 
         else:
             files = [(dirpath, None, None)]
-        return files
+    return files
 
+def convert_unit(size_in_bytes, unit):
+    """ Convert the size from bytes to other units like KB, MB or GB"""
+    if unit == SizeUnit.KB:
+        return size_in_bytes / 1024
+    elif unit == SizeUnit.MB:
+        return size_in_bytes / (1024 * 1024)
+    elif unit == SizeUnit.GB:
+        return size_in_bytes / (1024 * 1024 * 1024)
+    else:
+        return size_in_bytes
+
+
+def auto_convert_unit(size_in_bytes, text=True):
+    if isinstance(size_in_bytes, int):
+        sizes = sorted([siz for siz in SizeUnit], reverse=True)
+        for _size in sizes:
+            result = convert_unit(size_in_bytes, _size)
+            if result >= 1:
+                result_tuple = round(result, 2), _size
+                if text:
+                    return get_size_text(result_tuple)
+                else:
+                    return result_tuple
+
+        from exceptions import SizeNotConvertible
+        raise SizeNotConvertible(size_in_bytes)
+    else:
+        from exceptions import WrongSizeType
+        raise WrongSizeType(size_in_bytes)
+
+def get_diff_size(a_size, another_size):
+    return auto_convert_unit(a_size - another_size)
+
+def get_size_text(_size: tuple):
+    if len(_size) == 2:
+        num, unit = _size
+        if isinstance(num, (int, float)) and isinstance(unit, SizeUnit):
+            f'{round(num, 2)} {unit.name}'
+        else:
+            raise ErrorSizeTextConversion(_size)

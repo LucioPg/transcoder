@@ -20,7 +20,7 @@ from pytranscoder.cluster import manage_clusters
 from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats
+from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats, get_sizes, get_diff_size
 
 
 the_main_filename = sys.argv[0]
@@ -95,15 +95,14 @@ class QueueThread(Thread):
         self.lock.release()
 
     def go(self):
-
+        total_orig_size = total_new_size = total_session_time = 0
         while not self.queue.empty():
             try:
                 job: LocalJob = self.queue.get()
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
                 logger = logging.getLogger(f'Processing {job.inpath.name}')
-
-                fls = False
+                orig_size = new_size, session_time = 0
                 keep_orig = self.config.keep_orig()
                 if self.config.tmp_dir():
                     # lets write output to local storage, for efficiency
@@ -175,7 +174,6 @@ class QueueThread(Thread):
                     code = processor.run(cli, hbcli_callback)
                 job_stop = datetime.datetime.now()
                 elapsed = job_stop - job_start
-
                 if code == 0:
                     if not filter_threshold(job.profile, str(job.inpath), outpath):
                         # oops, this transcode didn't do so well, lets keep the original and scrap this attempt
@@ -187,6 +185,11 @@ class QueueThread(Thread):
                         continue
 
                     self.complete(job.inpath, elapsed.seconds)
+                    session_time = elapsed.seconds
+                    orig_size, new_size = get_sizes(job.inpath, outpath)
+                    total_orig_size += orig_size
+                    total_new_size += new_size
+                    total_session_time += session_time
                     destination = self.config.dest_dir()
                     if destination:
                         try:
@@ -222,6 +225,8 @@ class QueueThread(Thread):
                     shutil.move(outpath, completed_path)
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
+                    diff_size = get_diff_size(new_size, orig_size)
+                    self.log(logger, logger.info, f'{diff_size} {"SAVED" if diff_size >= 0 else "LOOSE"}')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
                 elif code is not None:
@@ -237,6 +242,7 @@ class QueueThread(Thread):
             finally:
                 self.queue.task_done()
 
+        return total_orig_size, total_new_size, total_session_time
 
 class LocalHost:
     """Encapsulates functionality for local encoding"""
