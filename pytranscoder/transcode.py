@@ -194,12 +194,12 @@ class QueueThread(Thread):
                     destination = self.config.dest_dir()
                     if destination:
                         try:
-                            os.makedirs(exist_ok=True)
+                            os.makedirs(destination,exist_ok=True)
                         except Exception as err:
                             self.log(logger.error,str(err))
                             self.log(logger.warning, f'The destination folder {destination} does not exist and can not be created')
                             self.log(logger.info, f'Changing the invalid destination folder to the temp output {self.config.tmp_dir()}')
-                            destination = outpath
+                            destination = outpath.parent
                         if keep_orig and destination == os.path.dirname(job.inpath):
                             completed_path = add_processed_suffix(os.path.join(destination, os.path.basename(
                                 job.inpath.with_suffix(job.profile.extension))))

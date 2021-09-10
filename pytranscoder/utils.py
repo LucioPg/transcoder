@@ -12,7 +12,7 @@ import logging
 
 
 def init_logger_strm(name='Progress'):
-    logger_progress_stream = logging.getLogger()
+    logger_progress_stream = logging.getLogger(name)
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     # create formatter and add it to the handlers
