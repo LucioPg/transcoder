@@ -25,7 +25,7 @@ setuptools.setup(
 #    extras_require={'with_plexapi': ['plexapi>=3.1.0']},
     url='https://github.com/mlsmithjr/transcoder',
     data_files=[('share/doc/pytranscoder', ['README.md', 'Cluster.md', 'transcode.yml', 'simple.yml'])],
-    packages=['pytranscoder', 'enums'],
+    packages=['pytranscoder', 'pytranscoder.enums'],
     install_requires=['pyyaml >= 5.1', 'crayons'],
     entry_points={"console_scripts": ["pytranscoder=pytranscoder.transcode:main"]},
     classifiers=[
