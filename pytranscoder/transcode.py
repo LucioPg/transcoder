@@ -20,7 +20,7 @@ from pytranscoder.cluster import manage_clusters
 from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats, init_logger_strm
+from pytranscoder.utils import get_files, filter_threshold, files_from_file, calculate_progress, dump_stats
 
 
 the_main_filename = sys.argv[0]
@@ -43,7 +43,6 @@ if not os.path.exists(config_path):
 DEFAULT_CONFIG = config_path
 DEFAULT_PROCESSES_SUFFIX_SEPARATOR = '_'
 DEFAULT_PROCESSED_SUFFIX = f'{DEFAULT_PROCESSES_SUFFIX_SEPARATOR}cuda'
-logger_progress_stream = init_logger_strm()
 class LocalJob:
     """One file with matched profile to be encoded"""
 
@@ -161,7 +160,7 @@ class QueueThread(Thread):
                                                     'comp': pct_comp,
                                                     'done': pct_done})
 
-                    self.log(logger_progress_stream.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log(logger.info, f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
                     if pct_comp < 0:
                         self.log(logger.warning,
                                  f'Encoding of {basename} cancelled and skipped due negative compression ratio')
