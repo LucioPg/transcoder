@@ -142,8 +142,8 @@ def auto_convert_unit(size_in_bytes, text=True):
         from exceptions import WrongSizeType
         raise WrongSizeType(size_in_bytes)
 
-def get_diff_size(a_size, another_size):
-    return auto_convert_unit(a_size - another_size)
+def get_diff_size(old_size, new_size):
+    return auto_convert_unit(new_size - old_size)
 
 def get_size_text(_size: tuple):
     if len(_size) == 2:

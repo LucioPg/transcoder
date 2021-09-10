@@ -1,4 +1,4 @@
-__version__ = '2.2.4.16'
+__version__ = '2.2.4.17'
 __author__ = 'Marshall L Smith Jr <marshallsmithjr@gmail.com>, Forked by Lucio Di C.>'
 __license__ = 'GPLv3'
 

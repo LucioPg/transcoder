@@ -225,7 +225,7 @@ class QueueThread(Thread):
                     shutil.move(outpath, completed_path)
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
-                    diff_size = get_diff_size(new_size, orig_size)
+                    diff_size = get_diff_size(orig_size, new_size)
                     self.log(logger, logger.info, f'{diff_size} {"SAVED" if diff_size >= 0 else "LOOSE"}')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
 
