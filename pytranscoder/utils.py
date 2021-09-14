@@ -8,8 +8,8 @@ from functools import wraps
 import pytranscoder
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
-from .exceptions import ErrorSizeTextConversion, DoesNotExistFilePath, ErrorEmptyFilePath
-from .enums.Enums import SizeUnit
+from exceptions import ErrorSizeTextConversion, DoesNotExistFilePath, ErrorEmptyFilePath
+from enums.Enums import SizeUnit
 
 
 def filter_threshold(profile: Profile, inpath, outpath):
@@ -20,9 +20,11 @@ def filter_threshold(profile: Profile, inpath, outpath):
 
 
 def get_sizes(inpath, outpath):
-    orig_size = os.path.getsize(inpath)
-    new_size = os.path.getsize(outpath)
-    return orig_size, new_size
+    return getsize(inpath), getsize(outpath)
+
+def getsize(_file):
+    _size = os.path.getsize(_file)
+    return _size
 
 def is_exceeded_threshold(pct_threshold: int, orig_size: int, new_size: int) -> bool:
     pct_savings = 100 - math.floor((new_size * 100) / orig_size)
@@ -68,6 +70,13 @@ def run(cmd):
     output = p.communicate()[0].decode('utf-8')
     return p.returncode, output
 
+def remove_duplicates(lst):
+    """preserve order. list(set()) won't preserve order"""
+    tmp = []
+    for x in lst:
+        if x not in tmp:
+            tmp.append(x)
+    return tmp
 
 def dump_stats(completed):
 
@@ -112,16 +121,32 @@ def get_files(dirpath, config):
             files = [(dirpath, None, None)]
     return files
 
+def get_overall_size(files):
+    if os.path.exists(files):
+        if os.path.isdir(files):
+            total_size = 0
+            for f in files:
+                total_size += os.stat(f).st_size
+            return auto_convert_unit(total_size)
+        else:
+            print(f'{files} is not a dir')
+    else:
+        print(f'{files} not exist')
+
+
 def convert_unit(size_in_bytes, unit):
     """ Convert the size from bytes to other units like KB, MB or GB"""
     if not size_in_bytes:
         return size_in_bytes
     if unit == SizeUnit.KB:
-        return size_in_bytes / 1024
+        return size_in_bytes / 1000
+        # return size_in_bytes / 1024
     elif unit == SizeUnit.MB:
-        return size_in_bytes / (1024 * 1024)
+        return size_in_bytes / (1000 * 1000)
+        # return size_in_bytes / (1024 * 1024)
     elif unit == SizeUnit.GB:
-        return size_in_bytes / (1024 * 1024 * 1024)
+        # return size_in_bytes / (1024 * 1024 * 1024)
+        return size_in_bytes / (1000 * 1000 * 1000)
     else:
         return size_in_bytes
 
@@ -163,3 +188,9 @@ def get_size_text(_size: tuple):
             raise ErrorSizeTextConversion(_size)
     else:
         raise ErrorSizeTextConversion(_size)
+
+
+if __name__ == '__main__':
+    path = '/media/gorilla/Acer/Users/Lucio/dwhelper'
+    files = [os.path.join(path, _file) for _file in os.listdir(path)]
+    print(get_overall_size(files))

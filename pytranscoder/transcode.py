@@ -21,7 +21,8 @@ from pytranscoder.config import ConfigFile
 from pytranscoder.media import MediaInfo
 from pytranscoder.profile import Profile
 from pytranscoder.utils import get_files, filter_threshold, files_from_file,\
-                                calculate_progress, dump_stats, get_sizes, get_diff_size, get_size_text
+                                calculate_progress, dump_stats, get_sizes,\
+                                get_diff_size, get_size_text, remove_duplicates, getsize, auto_convert_unit
 from traceback import format_exc
 
 the_main_filename = sys.argv[0]
@@ -70,7 +71,8 @@ class QueueThread(Thread):
         self.config = configfile
         self._manager = manager
         self.basename = ''
-        self.total_orig_size, self.total_new_size, self.total_session_time, self.errors = 0, 0, datetime.timedelta(), []
+        # self.total_orig_size, self.total_new_size, self.total_session_time = 0, 0, datetime.timedelta()
+        self.total_orig_size, self.total_new_size, self.total_session_time = self.init_stats()
 
     @property
     def lock(self):
@@ -96,11 +98,20 @@ class QueueThread(Thread):
             sys.stdout.flush()
         self.lock.release()
 
+
+    def init_stats(self):
+        total_orig_size, total_new_size, total_session_time = 0, 0, datetime.timedelta()
+        return total_orig_size, total_new_size, total_session_time
+
     def go(self):
-        files_to_remove = []
-        errors = []
+
         logger = None
         while not self.queue.empty():
+            self.total_orig_size, self.total_new_size, self.total_session_time = self.init_stats()
+            errors = []
+            files_to_remove = []
+            originals_to_remove = []
+            errors = []
             orig_size = new_size  = 0
             session_time = datetime.timedelta()
             job = outpath = None
@@ -112,10 +123,10 @@ class QueueThread(Thread):
                     logger.warning('The queue is empty')
                     break
             try:
-
+                self.basename = basename = job.inpath.name
                 input_opt = job.profile.input_options.as_shell_params()
                 output_opt = self.config.output_from_profile(job.profile, job.mixins)
-                logger = logging.getLogger(f'Processing {job.inpath.name}')
+                logger = logging.getLogger(f'Process {self.basename}')
                 keep_orig = self.config.keep_orig()
                 if self.config.tmp_dir():
                     # lets write output to local storage, for efficiency
@@ -138,7 +149,6 @@ class QueueThread(Thread):
                 else:
                     cli = ['-i', str(job.inpath), *input_opt, *output_opt, '-o', str(outpath)]
                 try:
-                    self.log(logger, logger.info, f"Filename : {crayons.green(os.path.basename(str(job.inpath)))}")
                     self.log(logger, logger.info, f"Profile  : {job.profile.name} {'{:<6}   : '.format(job.profile.processor) + ' '.join(cli)}")
                 except Exception as err:
                     self.log(logger, logger.critical, f'{err}')
@@ -146,7 +156,7 @@ class QueueThread(Thread):
                 if pytranscoder.dry_run:
                     continue
 
-                self.basename = basename = job.inpath.name
+
 
                 def log_callback(stats):
                     pct_done, pct_comp = calculate_progress(job.info, stats)
@@ -157,7 +167,7 @@ class QueueThread(Thread):
                                                     'done': pct_done})
 
                     self.log(logger, logger.info, f'speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%', only_console=True)
-                    if pct_comp < 0:
+                    if pct_comp < 0 and pct_done > 5:
                         self.log(logger, logger.warning,
                                  f'Encoding of {basename} cancelled and skipped due negative compression ratio')
                         return True
@@ -179,6 +189,9 @@ class QueueThread(Thread):
 
                     return PurePath(base + ext)
 
+                orig_size = getsize(job.inpath)
+                self.log(logger, logger.info,
+                         f'Original size: {auto_convert_unit(orig_size, text=True)}')
 
                 job_start = datetime.datetime.now()
                 if processor.is_ffmpeg():
@@ -187,6 +200,7 @@ class QueueThread(Thread):
                     code = processor.run(cli, hbcli_callback)
                 job_stop = datetime.datetime.now()
                 elapsed = job_stop - job_start
+
                 if code == 0:
                     if not filter_threshold(job.profile, str(job.inpath), outpath):
                         # oops, this transcode didn't do so well, lets keep the original and scrap this attempt
@@ -222,7 +236,7 @@ class QueueThread(Thread):
                                                           os.path.basename(
                                                               job.inpath.with_suffix(job.profile.extension)))
                             if not keep_orig:
-                                files_to_remove.append(job.inpath)
+                                originals_to_remove.append(job.inpath)
                                 # job.inpath.unlink(missing_ok=True)
                                 self.log(logger, logger.info, f'ORIGINAL IS GOING TO BE REMOVED')
 
@@ -232,7 +246,7 @@ class QueueThread(Thread):
                         else:
                             completed_path = job.inpath.with_suffix(job.profile.extension)
                             self.log(logger, logger.info, f'ORIGINAL OVERWRITTEN')
-                    orig_size, new_size = get_sizes(job.inpath, outpath)
+                    new_size = getsize(outpath)
                     diff_size = get_diff_size(orig_size, new_size)
                     if not os.path.exists(os.path.dirname(completed_path)):
                         try:
@@ -244,9 +258,13 @@ class QueueThread(Thread):
                     shutil.move(str(outpath), str(completed_path))
                     self.log(logger, logger.info, f'{outpath} moved to {completed_path}')
                             # outpath.rename(job.inpath.with_suffix(job.profile.extension))
+                    self.log(logger, logger.info,
+                         f'New size: {auto_convert_unit(new_size, text=True)}')
+                    self.total_orig_size += orig_size
+                    self.total_new_size += new_size
 
-                    self.log(logger, logger.info, f'{get_size_text(diff_size)} {"SAVED" if int(diff_size[0]) >= 0 else "LOOSE"}')
                     self.log(logger, logger.info, crayons.yellow(f'Finished {outpath}, {"original file unchanged" if keep_orig else ""}'))
+                    self.log(logger, logger.info, f'{get_size_text(diff_size)} {"SAVED" if int(diff_size[0]) >= 0 else "LOOSE"}')
 
                 elif code is not None:
                     self.log(logger, logger.critical, f' Did not complete normally: {processor.last_command}')
@@ -259,37 +277,52 @@ class QueueThread(Thread):
                     except Exception as err:
                         self.log(logger, logger.warning, f'{outpath} NOT removed')
                         self.log(logger, logger.error, f'{err}')
+                else:
+                    self.log(logger, logger.warning,f'{self.basename} aborted')
+                    try:
+                        os.unlink(outpath)
+                        self.log(logger, logger.warning, f'{outpath} removed')
+                    except Exception as err:
+                        self.log(logger, logger.error, f'error {outpath} not removed')
+
 
             except Exception as err:
                 stack = format_exc()
                 if logger is not None:
-                    logger = logging.getLogger('Processing')
+                    logger = logging.getLogger(__name__)
                 self.log(logger, logger.debug, f'{stack}', only_console=True)
                 errors.append(err)
             finally:
-                self.queue.task_done()
-                self.errors.extend(errors)
+                errors.extend(errors)
+                self.total_session_time += session_time
                 try:
                     # orig_size, new_size = get_sizes(job.inpath, completed_path)
-                    self.total_orig_size += orig_size
-                    self.total_new_size += new_size
-                    self.total_session_time += session_time
+                    if not errors:
+                        errors = self.removing_files(originals_to_remove, logger, errors)
+                    self.removing_files(files_to_remove, logger, errors)
+                    errors = remove_duplicates(errors)
                 except Exception as err:
                     stack = format_exc()
                     self.log(logger, logger.debug, f'{stack}', only_console=True)
-                    self.errors.append(err)
-            if not self.errors:
-                for _file in files_to_remove:
-                    try:
-                        os.unlink(str(_file))
-                        self.log(logger, logger.info, f'actually removing {_file}')
-                    except Exception as err:
-                        stack = format_exc()
-                        self.log(logger, logger.debug, f'{stack}', only_console=True)
-                        self.errors.append(err)
+                    errors.append(err)
+
+                self.queue.task_done()
 
 
 
+
+
+    def removing_files(self, files, logger, errors):
+        for _file in files:
+            try:
+                os.unlink(str(_file))
+                self.log(logger, logger.info, f'actually removing {_file}')
+            except Exception as err:
+                stack = format_exc()
+                self.log(logger, logger.debug, f'{stack}', only_console=True)
+                self.log(logger, logger.critical, str(err))
+                errors.append(err)
+        return errors
 
 class LocalHost:
     """Encapsulates functionality for local encoding"""
@@ -313,6 +346,7 @@ class LocalHost:
         #
         # all files are listed in the queues so start the threads
         #
+        self.total_orig_size, self.total_new_size, self.total_session_time, self.errors = 0, 0, datetime.timedelta(), []
         jobs = list()
         for name, queue in self.queues.items():
 
@@ -354,7 +388,7 @@ class LocalHost:
                         self.total_orig_size += job.total_orig_size
                         self.total_new_size += job.total_new_size
                         self.total_session_time += job.total_session_time
-                        self.errors.extend(job.errors)
+                        # self.errors.extend(job.errors)
 
         # wait for all queues to drain and all jobs to complete
 #        for _, queue in self.queues.items():
@@ -367,6 +401,7 @@ class LocalHost:
         :return:
         """
         logger = logging.getLogger('Enqueue files')
+        number_files_added = 0
         for path, forced_profile, mixins in files:
             #
             # do some prechecks...
@@ -400,7 +435,7 @@ class LocalHost:
                 continue
 
             if media_info.valid:
-                logger.debug(media_info)
+                #logger.debug(str(media_info)) # todo need __str__ in to that class....
 
                 if forced_profile is None:
                     rule = self.configfile.match_rule(media_info)
@@ -433,11 +468,14 @@ class LocalHost:
                         sys.exit(1)
                     else:
                         self.queues[qname].put(LocalJob(path, the_profile, mixins, media_info))
+                        number_files_added += 1
                         if pytranscoder.verbose:
                             print('Added to queue {qname}')
                             logger.debug(f'Added to queue {qname}')
                 else:
                     self.queues['_default_'].put(LocalJob(path, the_profile, mixins, media_info))
+                    number_files_added += 1
+        return number_files_added
 
 
 def cleanup_queuefile(queue_path: str, completed: Set):
@@ -479,7 +517,7 @@ def main(cmd_line=True, folder_path=None):
 def start(path):
     install_sigint_handler()
     configfile = ConfigFile(DEFAULT_CONFIG)
-    files = get_files(path, configfile)
+    # files = get_files(path, configfile)
     queue_path = configfile.default_queue_file
     if not queue_path:
         queue_path = '/tmp/py_encoder.txt'
@@ -487,7 +525,8 @@ def start(path):
         crayons.disable()
     else:
         crayons.enable()
-    total_orig_size, total_new_size, total_session_time, errors = host_start(configfile, files, queue_path)
+    total_orig_size, total_new_size, total_session_time, errors = host_start(configfile, path, queue_path)
+    # assert total_orig_size ==
     return total_orig_size, total_new_size, total_session_time, errors
 
 
@@ -614,9 +653,15 @@ def start_cmd_line():
     total_orig_size, total_new_size, total_session_time, errors = host_start(configfile, files, queue_path)
     return total_orig_size, total_new_size, total_session_time, errors
 
-def host_start(configfile, files, queue_path):
+def host_start(configfile, path, queue_path):
+    if os.path.isdir(path):
+        files = get_files(path, configfile)
+        logger = logging.getLogger(f'Folder: {path}')
+    else:
+        logger = logging.getLogger(f'From cmd line')
     host = LocalHost(configfile)
-    host.enqueue_files(files)
+    number_files_added = host.enqueue_files(files)
+    logger.info(f'Number of files {number_files_added}')
     #
     # start all threads and wait for work to complete
     #

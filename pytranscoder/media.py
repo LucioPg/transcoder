@@ -161,7 +161,7 @@ class MediaInfo:
             # print(f'Error: Rule "{rulename}" valid value: {value}')
             return False
 
-        logger.warning(f'running eval against {expr}')
+        logger.debug(f'running eval against {expr}')
         if not eval(expr): ### TODO CHANGE DANGEROUS!!!!
             if verbose:
                 logger.info(f'  >> predicate {pred} ("{value}") did not match {attr}')
@@ -175,13 +175,13 @@ class MediaInfo:
         match1 = video_dur.match(output)
         if match1 is None or len(match1.groups()) < 3:
             # print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
-            logger.info(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            logger.debug(f'>>>> regex match on video stream duration failed: ffmpeg -i {_path}')
             return MediaInfo(None)
 
         match2 = video_info.match(output)
         if match2 is None or len(match2.groups()) < 5:
             # print(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
-            logger.info(f'>>>> regex match on video stream data failed: ffmpeg -i {_path}')
+            logger.debug(f'>>>> regex match on video stream info data failed: ffmpeg -i {_path}')
             return MediaInfo(None)
 
         audio_tracks = list()
